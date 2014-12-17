@@ -24,8 +24,6 @@ public class MultiThreadedService extends Service {
     // counter for number of files we have downloaded
     private int downloadsStarted;
     private int downloadsFinished;
-    private Callable<Object> shutdownTask;
-    private Future shutdownFuture;
     private Handler handler;
 
     @Override
