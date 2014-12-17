@@ -3,44 +3,54 @@ package com.github.browep.testservices;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 
-import java.awt.font.TextAttribute;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class MultiThreadedService extends Service {
 
     public static final String _URL = "url";
     private ExecutorService executorService;
     // counter for number of files we have downloaded
-    private int i;
+    private int downloadsStarted;
+    private int downloadsFinished;
+    private Callable<Object> shutdownTask;
+    private Future shutdownFuture;
+    private Handler handler;
 
     @Override
     public void onCreate() {
         super.onCreate();
         // let's create a thread pool with five threads
         executorService = Executors.newFixedThreadPool(5);
-        i = 0;
+        downloadsStarted = 0;
+        downloadsFinished = 0;
+        handler = new Handler();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
+        // we got new work.  if we were previously going to shutdown then cancel that
+        if (shutdownFuture != null && !shutdownFuture.isDone()) {
+            shutdownFuture.cancel(true);
+        }
+
         // lets say that we are sending the url in the intent
         String url = intent.getStringExtra(_URL);
 
         // create a runnable for the ExecutorService
-        DownloadRunnable task = new DownloadRunnable(getApplicationContext(), url, i++);
+        DownloadRunnable task = new DownloadRunnable(getApplicationContext(), url, downloadsStarted++);
 
         // submit it to the ExecutorService, this will be put on the queue and run using a thread
         // from the ExecutorService pool
@@ -62,9 +72,25 @@ public class MultiThreadedService extends Service {
     }
 
     /**
+     * to be called by the dl task.  if we have exhausted our list of dl's let's shutdown.
+     */
+    private void finished() {
+        if (downloadsFinished == downloadsStarted) {
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    Log.d("MultiThreadedService", "downloaded " + downloadsFinished + " images, shutting down.");
+                    stopSelf();
+                }
+            });
+
+        }
+    }
+
+    /**
      * dl's the image in question to <index>.jpg
      */
-    public static class DownloadRunnable implements Runnable {
+    private class DownloadRunnable implements Runnable {
 
         private static final int BUFFER_SIZE = 4096;
 
@@ -113,6 +139,9 @@ public class MultiThreadedService extends Service {
                 }
 
             }
+
+            downloadsFinished++;
+            finished();
 
         }
     }
