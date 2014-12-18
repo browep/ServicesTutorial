@@ -39,11 +39,6 @@ public class MultiThreadedService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
-        // we got new work.  if we were previously going to shutdown then cancel that
-        if (shutdownFuture != null && !shutdownFuture.isDone()) {
-            shutdownFuture.cancel(true);
-        }
-
         // lets say that we are sending the url in the intent
         String url = intent.getStringExtra(_URL);
 
